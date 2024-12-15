@@ -1,0 +1,8 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    server_name_in_redirect off;
+    return 444;
+}

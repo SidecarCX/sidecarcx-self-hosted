@@ -1,0 +1,237 @@
+name: sidecarcx-self-hosted-core
+
+services:
+  sidecarcx-self-hosted-db:
+    build:
+      dockerfile: sidecarcx-db.Dockerfile
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: ${SIDECARCX_SELF_HOSTED_ROOT_DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${SIDECARCX_SELF_HOSTED_ROOT_DATABASE_PASSWORD}
+      POSTGRES_DB: sidecar_self_hosted_db
+    networks:
+      - sidecarcx_self_hosted_db_net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - sidecarcx_self_hosted_db_data:/var/lib/postgresql/data
+
+  sidecarcx-self-hosted-bootstrap:
+    image: ${SIDECARCX_SELF_HOSTED_IMAGE}
+    user: root
+    command: ["./bootstrap", "-apiURL=${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}://${SIDECARCX_SELF_HOSTED_API_DOMAIN}"]
+    environment:
+      SIDECARCX_SELF_HOSTED_APP_DATABASE_PASSWORD: ${SIDECARCX_SELF_HOSTED_APP_DATABASE_PASSWORD}
+    volumes:
+      - sidecarcx_self_hosted_data:/usr/local/sidecarcx
+
+  fusionauth-db:
+    image: postgres:17.2-bookworm
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_USER: ${FUSIONAUTH_ROOT_DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${FUSIONAUTH_ROOT_DATABASE_PASSWORD}
+    networks:
+      - fusionauth_db_net
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - fusionauth_db_data:/var/lib/postgresql/data
+
+  fusionauth-search:
+    image: opensearchproject/opensearch:2.18.0
+    environment:
+      cluster.name: fusionauth
+      discovery.type: single-node
+      node.name: search
+      plugins.security.disabled: true
+      bootstrap.memory_lock: true
+      OPENSEARCH_JAVA_OPTS: ${FUSIONAUTH_SEARCH_JAVA_OPTS}
+      DISABLE_INSTALL_DEMO_CONFIG: true
+    healthcheck:
+      interval: 10s
+      retries: 80
+      test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://fusionauth-search:9200/
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - fusionauth_search_data:/usr/share/opensearch/data
+    networks:
+      - fusionauth_net
+
+  fusionauth-app:
+    image: fusionauth/fusionauth-app:1.54.0
+    depends_on:
+      fusionauth-db:
+        condition: service_healthy
+      fusionauth-search:
+        condition: service_healthy
+      sidecarcx-self-hosted-bootstrap:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: jdbc:postgresql://fusionauth-db:5432/fusionauth
+      DATABASE_ROOT_USERNAME: ${FUSIONAUTH_ROOT_DATABASE_USERNAME}
+      DATABASE_ROOT_PASSWORD: ${FUSIONAUTH_ROOT_DATABASE_PASSWORD}
+      DATABASE_USERNAME: ${FUSIONAUTH_DATABASE_USERNAME}
+      DATABASE_PASSWORD: ${FUSIONAUTH_DATABASE_PASSWORD}
+      FUSIONAUTH_APP_MEMORY: ${FUSIONAUTH_APP_MEMORY}
+      FUSIONAUTH_APP_RUNTIME_MODE: "production"
+      FUSIONAUTH_APP_URL: http://fusionauth-app:9011
+      SEARCH_SERVERS: http://fusionauth-search:9200
+      SEARCH_TYPE: elasticsearch
+      FUSIONAUTH_APP_KICKSTART_FILE: /usr/local/sidecarcx/kickstart/kickstart.json
+      SIDECARCX_SELF_HOSTED_ADMIN_EMAIL: ${SIDECARCX_SELF_HOSTED_ADMIN_EMAIL}
+      SIDECARCX_SELF_HOSTED_ADMIN_PASSWORD: ${SIDECARCX_SELF_HOSTED_ADMIN_PASSWORD}
+    networks:
+      - fusionauth_net
+      - fusionauth_db_net
+    restart: unless-stopped
+    healthcheck:
+      interval: 10s
+      retries: 80
+      test: curl --write-out 'HTTP %{http_code}' --fail --silent --output /dev/null http://fusionauth-app:9011/api/status
+    volumes:
+      - sidecarcx_self_hosted_data:/usr/local/sidecarcx
+      - fusionauth_config_data:/usr/local/fusionauth/config
+
+  sidecarcx-self-hosted-provision:
+    image: ${SIDECARCX_SELF_HOSTED_IMAGE}
+    user: root
+    depends_on:
+      fusionauth-app:
+        condition: service_healthy
+    command: ["./bootstrap", "-provision", "-apiURL=${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}://${SIDECARCX_SELF_HOSTED_API_DOMAIN}", "-appURL=${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}://${SIDECARCX_SELF_HOSTED_APP_DOMAIN}", "-agentURL=${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}://${SIDECARCX_SELF_HOSTED_AGENT_DOMAIN}"]
+    environment:
+      SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL: ${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}
+      SIDECARCX_SELF_HOSTED_API_DOMAIN: ${SIDECARCX_SELF_HOSTED_API_DOMAIN}
+      SIDECARCX_SELF_HOSTED_APP_DOMAIN: ${SIDECARCX_SELF_HOSTED_APP_DOMAIN}
+      SIDECARCX_SELF_HOSTED_AGENT_DOMAIN: ${SIDECARCX_SELF_HOSTED_AGENT_DOMAIN}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USE_TLS: ${MAIL_USE_TLS}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME}
+    volumes:
+      - sidecarcx_self_hosted_data:/usr/local/sidecarcx
+    networks:
+      - fusionauth_net
+
+  liquibase:
+    image: liquibase/liquibase:4.30.0
+    depends_on:
+      sidecarcx-self-hosted-db:
+        condition: service_healthy
+      sidecarcx-self-hosted-provision:
+        condition: service_completed_successfully
+    command: "--url=jdbc:postgresql://sidecarcx-self-hosted-db:5432/sidecar_self_hosted_db --searchPath=/liquibase/changelog --changeLogFile=migrations/db.changelog-master.yml --username=${SIDECARCX_SELF_HOSTED_ROOT_DATABASE_USERNAME} --password=${SIDECARCX_SELF_HOSTED_ROOT_DATABASE_PASSWORD} update -DSIDECARCX_SELF_HOSTED_APP_DATABASE_PASSWORD=${SIDECARCX_SELF_HOSTED_APP_DATABASE_PASSWORD}"
+    environment:
+      LIQUIBASE_ANALYTICS_ENABLED: false
+    volumes:
+      - sidecarcx_self_hosted_data:/liquibase/changelog:ro
+    networks:
+      - sidecarcx_self_hosted_db_net
+
+  sidecarcx-self-hosted:
+    image: ${SIDECARCX_SELF_HOSTED_IMAGE}
+    depends_on:
+      sidecarcx-self-hosted-db:
+        condition: service_healthy
+      sidecarcx-self-hosted-provision:
+        condition: service_completed_successfully
+      liquibase:
+        condition: service_completed_successfully
+      fusionauth-app:
+        condition: service_healthy
+    volumes:
+      - sidecarcx_self_hosted_data:/usr/local/sidecarcx:ro
+      - sidecarcx_self_hosted_cache:/sidecarcx/cache
+    restart: unless-stopped
+    environment:
+      SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL: ${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}
+      SIDECARCX_SELF_HOSTED_API_DOMAIN: ${SIDECARCX_SELF_HOSTED_API_DOMAIN}
+      SIDECARCX_SELF_HOSTED_APP_DOMAIN: ${SIDECARCX_SELF_HOSTED_APP_DOMAIN}
+      SIDECARCX_SELF_HOSTED_AGENT_DOMAIN: ${SIDECARCX_SELF_HOSTED_AGENT_DOMAIN}
+      SIDECARCX_SELF_HOSTED_ADMIN_EMAIL: ${SIDECARCX_SELF_HOSTED_ADMIN_EMAIL}
+      SIDECARCX_SELF_HOSTED_ADMIN_PASSWORD: ${SIDECARCX_SELF_HOSTED_ADMIN_PASSWORD}
+      USE_HTTPS_SECURE_COOKIE: ${SIDECARCX_SELF_HOSTED_USE_HTTPS_SECURE_COOKIE}
+    healthcheck:
+      interval: 10s
+      retries: 80
+      test: ["CMD", "./bootstrap", "-health"]
+    networks:
+      - sidecarcx_self_hosted_net
+      - sidecarcx_self_hosted_db_net
+      - fusionauth_net
+      - nginx_net
+
+  nginx:
+    image: nginx:1.26.2-alpine
+    depends_on:
+      sidecarcx-self-hosted:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      SIDECARCX_SELF_HOSTED_API_DOMAIN: ${SIDECARCX_SELF_HOSTED_API_DOMAIN}
+      SIDECARCX_SELF_HOSTED_APP_DOMAIN: ${SIDECARCX_SELF_HOSTED_APP_DOMAIN}
+      SIDECARCX_SELF_HOSTED_AGENT_DOMAIN: ${SIDECARCX_SELF_HOSTED_AGENT_DOMAIN}
+    ports:
+      - target: 80
+        published: 80
+        mode: host
+    volumes:
+      - type: bind
+        read_only: true
+        source: ./nginx/nginx.conf
+        target: /etc/nginx/nginx.conf
+      - type: bind
+        read_only: true
+        source: ./nginx/templates
+        target: /etc/nginx/templates
+      - nginx_cache_data:/var/cache/nginx
+      - sidecarcx_self_hosted_data:/usr/local/sidecarcx:ro
+    networks:
+      - nginx_net
+
+networks:
+  sidecarcx_self_hosted_net:
+    driver: bridge
+    external: true
+  sidecarcx_self_hosted_db_net:
+    driver: bridge
+  fusionauth_net:
+    driver: bridge
+  fusionauth_db_net:
+    driver: bridge
+  nginx_net:
+    driver: bridge
+
+volumes:
+  sidecarcx_self_hosted_cache:
+    external: true
+  sidecarcx_self_hosted_data:
+    external: true
+  sidecarcx_self_hosted_db_data:
+    external: true
+  fusionauth_db_data:
+    external: true
+  fusionauth_config_data:
+    external: true
+  fusionauth_search_data:
+    external: true
+  nginx_cache_data:

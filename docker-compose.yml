@@ -1,0 +1,5 @@
+name: sidecarcx-self-hosted
+
+include:
+  - docker-compose.core.yml
+  - docker-compose.scraper.yml

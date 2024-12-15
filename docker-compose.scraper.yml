@@ -1,0 +1,30 @@
+name: sidecarcx-self-hosted-scraper
+
+services:
+  sidecarcx-self-hosted-scraper:
+    image: ${SIDECARCX_SELF_HOSTED_SCRAPER_IMAGE}
+    # arm64 is not supported in this image due to Chrome limitations
+    platform: linux/amd64
+    depends_on:
+      sidecarcx-self-hosted:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      interval: 10s
+      retries: 80
+      test: wget --no-verbose --tries=1 --spider http://localhost:3552/health || exit 1
+    cap_add:
+      - SYS_ADMIN
+    volumes:
+      - sidecarcx_self_hosted_data:/usr/local/sidecarcx:ro
+    networks:
+      - sidecarcx_self_hosted_net
+
+networks:
+  sidecarcx_self_hosted_net:
+    driver: bridge
+    external: true
+
+volumes:
+  sidecarcx_self_hosted_data:
+    external: true

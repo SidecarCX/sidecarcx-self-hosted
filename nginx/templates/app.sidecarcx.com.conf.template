@@ -1,0 +1,9 @@
+server {
+    listen 80;
+    server_name ${SIDECARCX_SELF_HOSTED_APP_DOMAIN};
+    root /usr/local/sidecarcx/www/sidecar-self-hosted;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

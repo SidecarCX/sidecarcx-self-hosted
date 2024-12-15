@@ -1,0 +1,5 @@
+services:
+  sidecarcx-self-hosted-scraper:
+    depends_on:
+      sidecarcx-self-hosted:
+        condition: service_healthy

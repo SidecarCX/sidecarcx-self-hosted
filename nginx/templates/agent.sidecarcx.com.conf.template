@@ -1,0 +1,9 @@
+server {
+    listen 80;
+    server_name ${SIDECARCX_SELF_HOSTED_AGENT_DOMAIN};
+    root /usr/local/sidecarcx/www/sidecar-ai-agent-self-hosted;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
