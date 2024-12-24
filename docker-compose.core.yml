@@ -74,7 +74,7 @@ services:
       - fusionauth_net
 
   fusionauth-app:
-    image: fusionauth/fusionauth-app:1.54.0
+    image: fusionauth/fusionauth-app:1.55.1
     depends_on:
       fusionauth-db:
         condition: service_healthy
@@ -181,7 +181,7 @@ services:
       - nginx_net
 
   nginx:
-    image: nginx:1.26.2-alpine
+    image: nginx:1.27.3-alpine
     depends_on:
       sidecarcx-self-hosted:
         condition: service_healthy

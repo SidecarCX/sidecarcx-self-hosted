@@ -15,5 +15,11 @@ if [ ! -f "${SCRIPT_DIR}/installer_${os}_${arch}" ]; then
   exit 1
 fi
 
+if [ -f "${SCRIPT_DIR}/../.env" ]; then
+  docker compose down
+fi
+
 sh "${SCRIPT_DIR}/create_resources.sh"
 "${SCRIPT_DIR}/installer_${os}_${arch}"
+
+docker compose build
