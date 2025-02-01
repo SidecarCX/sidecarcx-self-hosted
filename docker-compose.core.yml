@@ -133,7 +133,7 @@ services:
       - fusionauth_net
 
   liquibase:
-    image: liquibase/liquibase:4.30.0
+    image: liquibase/liquibase:4.31.0
     depends_on:
       sidecarcx-self-hosted-db:
         condition: service_healthy
