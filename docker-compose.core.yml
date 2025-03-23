@@ -26,6 +26,11 @@ services:
     command: ["./bootstrap", "-apiURL=${SIDECARCX_SELF_HOSTED_DOMAIN_PROTOCOL}://${SIDECARCX_SELF_HOSTED_API_DOMAIN}"]
     environment:
       SIDECARCX_SELF_HOSTED_APP_DATABASE_PASSWORD: ${SIDECARCX_SELF_HOSTED_APP_DATABASE_PASSWORD}
+      SIDECARCX_SELF_HOSTED_APPLICATION_SERVER_SECRET_KEY: ${SIDECARCX_SELF_HOSTED_APPLICATION_SERVER_SECRET_KEY}
+      SIDECARCX_SELF_HOSTED_CSRF_SECRET_KEY: ${SIDECARCX_SELF_HOSTED_CSRF_SECRET_KEY}
+      SIDECARCX_SELF_HOSTED_SCRAPER_JOB_SECRET_KEY: ${SIDECARCX_SELF_HOSTED_SCRAPER_JOB_SECRET_KEY}
+      SIDECARCX_SELF_HOSTED_CRON_JOB_SECRET_KEY: ${SIDECARCX_SELF_HOSTED_CRON_JOB_SECRET_KEY}
+      SIDECARCX_SELF_HOSTED_FUSIONAUTH_APPLICATION_ID: ${SIDECARCX_SELF_HOSTED_FUSIONAUTH_APPLICATION_ID}
     volumes:
       - sidecarcx_self_hosted_data:/usr/local/sidecarcx
 
@@ -47,7 +52,7 @@ services:
       - fusionauth_db_data:/var/lib/postgresql/data
 
   fusionauth-search:
-    image: opensearchproject/opensearch:2.18.0
+    image: opensearchproject/opensearch:2.19.1
     environment:
       cluster.name: fusionauth
       discovery.type: single-node
@@ -74,7 +79,7 @@ services:
       - fusionauth_net
 
   fusionauth-app:
-    image: fusionauth/fusionauth-app:1.55.1
+    image: fusionauth/fusionauth-app:1.56.0
     depends_on:
       fusionauth-db:
         condition: service_healthy
@@ -131,9 +136,10 @@ services:
       - sidecarcx_self_hosted_data:/usr/local/sidecarcx
     networks:
       - fusionauth_net
+      - sidecarcx_self_hosted_db_net
 
   liquibase:
-    image: liquibase/liquibase:4.31.0
+    image: liquibase/liquibase:4.31.1
     depends_on:
       sidecarcx-self-hosted-db:
         condition: service_healthy
