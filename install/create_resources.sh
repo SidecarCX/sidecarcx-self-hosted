@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Copyright (c) 2024 Sidecar CX, LLC <https://www.sidecarcx.com>
+# Copyright (c) 2024-2025 Sidecar CX, LLC <https://www.sidecarcx.com>
 #
 
 set -e
@@ -8,8 +8,8 @@ set -e
 volumes="
 sidecarcx_self_hosted_cache
 sidecarcx_self_hosted_data
-sidecarcx_self_hosted_db_data
-fusionauth_db_data
+sidecarcx_self_hosted_db_18_data
+fusionauth_db_18_data
 fusionauth_config_data
 fusionauth_search_data
 "

@@ -5,7 +5,7 @@ services:
     build:
       dockerfile: sidecarcx-db.Dockerfile
     environment:
-      PGDATA: /var/lib/postgresql/data/pgdata
+      PGDATA: /var/lib/postgresql/pgdata
       POSTGRES_USER: ${SIDECARCX_SELF_HOSTED_ROOT_DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${SIDECARCX_SELF_HOSTED_ROOT_DATABASE_PASSWORD}
       POSTGRES_DB: sidecar_self_hosted_db
@@ -18,7 +18,7 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - sidecarcx_self_hosted_db_data:/var/lib/postgresql/data
+      - sidecarcx_self_hosted_db_18_data:/var/lib/postgresql
 
   sidecarcx-self-hosted-bootstrap:
     image: ${SIDECARCX_SELF_HOSTED_IMAGE}
@@ -35,9 +35,9 @@ services:
       - sidecarcx_self_hosted_data:/usr/local/sidecarcx
 
   fusionauth-db:
-    image: postgres:17.2-bookworm
+    image: postgres:18.0-bookworm
     environment:
-      PGDATA: /var/lib/postgresql/data/pgdata
+      PGDATA: /var/lib/postgresql/pgdata
       POSTGRES_USER: ${FUSIONAUTH_ROOT_DATABASE_USERNAME}
       POSTGRES_PASSWORD: ${FUSIONAUTH_ROOT_DATABASE_PASSWORD}
     networks:
@@ -49,10 +49,10 @@ services:
       timeout: 5s
       retries: 5
     volumes:
-      - fusionauth_db_data:/var/lib/postgresql/data
+      - fusionauth_db_18_data:/var/lib/postgresql
 
   fusionauth-search:
-    image: opensearchproject/opensearch:2.19.1
+    image: opensearchproject/opensearch:3.2.0
     environment:
       cluster.name: fusionauth
       discovery.type: single-node
@@ -79,7 +79,7 @@ services:
       - fusionauth_net
 
   fusionauth-app:
-    image: fusionauth/fusionauth-app:1.56.0
+    image: fusionauth/fusionauth-app:1.60.2
     depends_on:
       fusionauth-db:
         condition: service_healthy
@@ -139,7 +139,7 @@ services:
       - sidecarcx_self_hosted_db_net
 
   liquibase:
-    image: liquibase/liquibase:4.31.1
+    image: liquibase/liquibase:4.33.0
     depends_on:
       sidecarcx-self-hosted-db:
         condition: service_healthy
@@ -187,7 +187,7 @@ services:
       - nginx_net
 
   nginx:
-    image: nginx:1.27.3-alpine
+    image: nginx:1.29.1-alpine
     depends_on:
       sidecarcx-self-hosted:
         condition: service_healthy
@@ -232,9 +232,9 @@ volumes:
     external: true
   sidecarcx_self_hosted_data:
     external: true
-  sidecarcx_self_hosted_db_data:
+  sidecarcx_self_hosted_db_18_data:
     external: true
-  fusionauth_db_data:
+  fusionauth_db_18_data:
     external: true
   fusionauth_config_data:
     external: true
